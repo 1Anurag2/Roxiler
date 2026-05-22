@@ -1,0 +1,67 @@
+.rating-stars {
+  display: flex;
+
+  gap: 8px;
+
+  align-items: center;
+}
+
+.rating-star {
+  font-size: 2rem;
+
+  color: #4b5563;
+
+  cursor: pointer;
+
+  transition:
+    transform 0.25s ease,
+    color 0.25s ease,
+    text-shadow 0.25s ease;
+
+  user-select: none;
+}
+
+/* Current Rating */
+.rating-star.active {
+  color: #facc15;
+
+  text-shadow: 0 0 12px rgba(250, 204, 21, 0.8);
+}
+
+/* Hover effect */
+.rating-star:hover {
+  color: #facc15;
+
+  transform: translateY(-4px) scale(1.25);
+
+  text-shadow: 0 0 18px rgba(250, 204, 21, 0.9);
+}
+
+/* Previous stars highlight */
+.rating-star:hover,
+.rating-star:hover ~ .rating-star {
+  transition: 0.2s;
+}
+
+/* Entire row hover */
+.rating-stars:hover .rating-star {
+  opacity: 0.45;
+}
+
+.rating-stars .rating-star:hover {
+  opacity: 1;
+}
+
+/* Make previous stars glow */
+.rating-stars .rating-star:hover,
+.rating-stars .rating-star:hover ~ .rating-star {
+  opacity: 1;
+}
+
+.rating-star:active {
+  transform: scale(0.95);
+}
+
+.rating-stars:hover .rating-star.active {
+  color: #f59e0b;
+}
