@@ -10,7 +10,7 @@ export default function OwnerDashboard() {
 
   const fetchDashboard = async () => {
     try {
-      const res = await axios.get('https://roxilerbackend-six.vercel.app/api/owner/dashboard');
+      const res = await axios.get('https://roxilerbackend-three.vercel.app/api/owner/dashboard');
       setDashboard(res.data);
     } catch (error) {
       console.error(error);

@@ -21,9 +21,9 @@ export default function AdminDashboard() {
   const fetchData = async () => {
     try {
       const [statsRes, usersRes, storesRes] = await Promise.all([
-        axios.get('https://roxilerbackend-six.vercel.app/api/admin/dashboard'),
-        axios.get('https://roxilerbackend-six.vercel.app/api/admin/users'),
-        axios.get('https://roxilerbackend-six.vercel.app/api/admin/stores')
+        axios.get('https://roxilerbackend-three.vercel.app/api/admin/dashboard'),
+        axios.get('https://roxilerbackend-three.vercel.app/api/admin/users'),
+        axios.get('https://roxilerbackend-three.vercel.app/api/admin/stores')
       ]);
       setStats(statsRes.data);
       setUsers(usersRes.data);
@@ -45,7 +45,7 @@ export default function AdminDashboard() {
   const handleAddUser = async (e) => {
     e.preventDefault();
     try {
-      await axios.post('https://roxilerbackend-six.vercel.app/api/admin/add-user', newUser);
+      await axios.post('https://roxilerbackend-three.vercel.app/api/admin/add-user', newUser);
       setShowAddUser(false);
       fetchData(); // Refresh list
     } catch (error) {
@@ -56,7 +56,7 @@ export default function AdminDashboard() {
   const handleAddStore = async (e) => {
     e.preventDefault();
     try {
-      await axios.post('https://roxilerbackend-six.vercel.app/api/admin/add-store', newStore);
+      await axios.post('https://roxilerbackend-three.vercel.app/api/admin/add-store', newStore);
       setShowAddStore(false);
       fetchData(); // Refresh list
     } catch (error) {

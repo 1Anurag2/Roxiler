@@ -59,7 +59,7 @@ const Navbar = () => {
     e.preventDefault();
     setIsUpdating(true);
     try {
-      await axios.post("https://roxilerbackend-six.vercel.app/api/auth/update-password", {
+      await axios.post("https://roxilerbackend-three.vercel.app/api/auth/update-password", {
         oldPassword,
         newPassword,
       });
