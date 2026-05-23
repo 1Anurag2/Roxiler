@@ -15,7 +15,7 @@ export default function Register() {
     setIsLoading(true);
     setError('');
     try {
-      await axios.post('http://localhost:5000/api/auth/register', formData);
+      await axios.post('https://roxilerbackend-six.vercel.app/api/auth/register', formData);
       navigate('/login');
     } catch (err) {
       setError(err.response?.data?.error || 'Registration failed');

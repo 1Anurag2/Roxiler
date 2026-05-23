@@ -12,7 +12,7 @@ export default function UserDashboard() {
 
   const fetchStores = async () => {
     try {
-      const res = await axios.get("http://localhost:5000/api/users/stores");
+      const res = await axios.get("https://roxilerbackend-six.vercel.app/api/users/stores");
       setStores(res.data);
     } catch (error) {
       console.error(error);
@@ -21,7 +21,7 @@ export default function UserDashboard() {
 
   const handleRate = async (storeId, score) => {
     try {
-      await axios.post("http://localhost:5000/api/users/rate", {
+      await axios.post("https://roxilerbackend-six.vercel.app/api/users/rate", {
         storeId,
         score,
       });
