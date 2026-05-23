@@ -1,7 +1,7 @@
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
-const { PrismaClient } = require("@prisma/client");
-const prisma = new PrismaClient();
+const db = require("../config/db");
+const crypto = require("crypto");
 
 const validatePassword = (password) => {
   const re = /^(?=.*[A-Z])(?=.*[!@#$&*]).{8,16}$/;
@@ -9,83 +9,114 @@ const validatePassword = (password) => {
 };
 
 const validateEmail = (email) => {
-  const re = /\S+@\S+\.\S+/;
-  return re.test(email);
+  return /\S+@\S+\.\S+/.test(email);
 };
 
+// REGISTER
 exports.register = async (req, res) => {
   try {
     const { name, email, password, address, role } = req.body;
 
     if (!name || name.length < 5 || name.length > 60) {
-      return res
-        .status(400)
-        .json({ error: "Name must be between 5 and 60 characters." });
-    }
-    if (!address || address.length > 400) {
-      return res
-        .status(400)
-        .json({ error: "Address must be max 400 characters." });
-    }
-    if (!validateEmail(email)) {
-      return res.status(400).json({ error: "Invalid email format." });
-    }
-    if (!validatePassword(password)) {
       return res.status(400).json({
-        error:
-          "Password must be 8-16 characters, include 1 uppercase and 1 special character.",
+        error: "Name must be between 5 and 60 characters",
       });
     }
 
-    const existingUser = await prisma.user.findUnique({ where: { email } });
-    if (existingUser) {
-      return res.status(400).json({ error: "Email already exists." });
+    if (!address || address.length > 400) {
+      return res.status(400).json({
+        error: "Address max 400 chars",
+      });
     }
 
-    const hashedPassword = await bcrypt.hash(password, 10);
-    const userRole = role || "NORMAL"; // NORMAL is default
+    if (!validateEmail(email)) {
+      return res.status(400).json({
+        error: "Invalid email",
+      });
+    }
 
-    const user = await prisma.user.create({
-      data: {
-        name,
-        email,
-        password: hashedPassword,
-        address,
-        role: userRole,
-      },
+    if (!validatePassword(password)) {
+      return res.status(400).json({
+        error: "Password must contain uppercase and special char",
+      });
+    }
+
+    const [existing] = await db.execute("SELECT * FROM user WHERE email=?", [
+      email,
+    ]);
+
+    if (existing.length) {
+      return res.status(400).json({
+        error: "Email already exists",
+      });
+    }
+
+    const hashed = await bcrypt.hash(password, 10);
+
+    const id = crypto.randomUUID();
+
+    await db.execute(
+      `
+      INSERT INTO user
+      (id,name,email,password,address,role)
+      VALUES (?,?,?,?,?,?)
+      `,
+      [id, name, email, hashed, address, role || "NORMAL"],
+    );
+
+    res.status(201).json({
+      message: "User registered successfully",
+      userId: id,
     });
+  } catch (err) {
+    console.log(err);
 
-    res
-      .status(201)
-      .json({ message: "User registered successfully", userId: user.id });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: "Internal server error" });
+    res.status(500).json({
+      error: "Internal server error",
+    });
   }
 };
+
+// LOGIN
 
 exports.login = async (req, res) => {
   try {
     const { email, password } = req.body;
-    const user = await prisma.user.findUnique({ where: { email } });
 
-    if (!user) {
-      return res.status(400).json({ error: "Invalid credentials." });
+    const [rows] = await db.execute("SELECT * FROM user WHERE email=?", [
+      email,
+    ]);
+
+    if (!rows.length) {
+      return res.status(400).json({
+        error: "Invalid credentials",
+      });
     }
 
-    const validPassword = await bcrypt.compare(password, user.password);
-    if (!validPassword) {
-      return res.status(400).json({ error: "Invalid credentials." });
+    const user = rows[0];
+
+    const ok = await bcrypt.compare(password, user.password);
+
+    if (!ok) {
+      return res.status(400).json({
+        error: "Invalid credentials",
+      });
     }
 
     const token = jwt.sign(
-      { id: user.id, role: user.role },
+      {
+        id: user.id,
+        role: user.role,
+      },
       process.env.JWT_SECRET,
-      { expiresIn: "1d" },
+      {
+        expiresIn: "1d",
+      },
     );
 
     res.json({
       token,
+
       user: {
         id: user.id,
         name: user.name,
@@ -93,40 +124,57 @@ exports.login = async (req, res) => {
         role: user.role,
       },
     });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: "Internal server error" });
+  } catch (err) {
+    console.log(err);
+
+    res.status(500).json({
+      error: "Internal server error",
+    });
   }
 };
+
+// UPDATE PASSWORD
 
 exports.updatePassword = async (req, res) => {
   try {
     const { oldPassword, newPassword } = req.body;
+
     const userId = req.user.id;
 
     if (!validatePassword(newPassword)) {
       return res.status(400).json({
-        error:
-          "New password must be 8-16 characters, include 1 uppercase and 1 special character.",
+        error: "Invalid password format",
       });
     }
 
-    const user = await prisma.user.findUnique({ where: { id: userId } });
-    const validPassword = await bcrypt.compare(oldPassword, user.password);
+    const [rows] = await db.execute("SELECT * FROM user WHERE id=?", [userId]);
 
-    if (!validPassword) {
-      return res.status(400).json({ error: "Invalid old password." });
+    const user = rows[0];
+
+    const ok = await bcrypt.compare(oldPassword, user.password);
+
+    if (!ok) {
+      return res.status(400).json({
+        error: "Old password incorrect",
+      });
     }
 
-    const hashedPassword = await bcrypt.hash(newPassword, 10);
-    await prisma.user.update({
-      where: { id: userId },
-      data: { password: hashedPassword },
-    });
+    const hashed = await bcrypt.hash(newPassword, 10);
 
-    res.json({ message: "Password updated successfully" });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: "Internal server error" });
+    await db.execute(
+      "UPDATE user SET password=? WHERE id=?",
+
+      [hashed, userId],
+    );
+
+    res.json({
+      message: "Password updated",
+    });
+  } catch (err) {
+    console.log(err);
+
+    res.status(500).json({
+      error: "Internal server error",
+    });
   }
 };

@@ -1,98 +1,198 @@
-const { PrismaClient } = require('@prisma/client');
-const bcrypt = require('bcryptjs');
-const prisma = new PrismaClient();
+const db = require("../config/db");
+const bcrypt = require("bcryptjs");
+const crypto = require("crypto");
+
+// DASHBOARD
 
 exports.getDashboardStats = async (req, res) => {
   try {
-    const totalUsers = await prisma.user.count({ where: { role: 'NORMAL' } });
-    const totalStores = await prisma.store.count();
-    const totalRatings = await prisma.rating.count();
+    const [[users]] = await db.execute(
+      `
+        SELECT COUNT(*) total
+        FROM user
+        WHERE role='NORMAL'
+        `,
+    );
 
-    res.json({ totalUsers, totalStores, totalRatings });
-  } catch (error) {
-    res.status(500).json({ error: 'Internal server error' });
+    const [[stores]] = await db.execute(
+      `
+        SELECT COUNT(*) total
+        FROM store
+        `,
+    );
+
+    const [[ratings]] = await db.execute(
+      `
+        SELECT COUNT(*) total
+        FROM rating
+        `,
+    );
+
+    res.json({
+      totalUsers: users.total,
+      totalStores: stores.total,
+      totalRatings: ratings.total,
+    });
+  } catch (err) {
+    console.log(err);
+
+    res.status(500).json({
+      error: "Internal server error",
+    });
   }
 };
+
+// GET USERS
 
 exports.getUsers = async (req, res) => {
   try {
-    // Basic filter & sort can be handled on the frontend for simplicity, 
-    // or passed as query params. We will return all and let the client filter/sort.
-    const users = await prisma.user.findMany({
-      where: {
-        role: { in: ['NORMAL', 'ADMIN', 'STORE_OWNER'] }
-      },
-      select: {
-        id: true, name: true, email: true, address: true, role: true,
-        ratings: { select: { score: true } },
-        ownedStores: { select: { ratings: { select: { score: true } } } }
-      }
-    });
+    const [users] = await db.execute(
+      `
+        SELECT
 
-    // Formatting store owner ratings
-    const formattedUsers = users.map(user => {
-      let rating = null;
-      if (user.role === 'STORE_OWNER' && user.ownedStores.length > 0) {
-        const storeRatings = user.ownedStores[0].ratings;
-        if (storeRatings.length > 0) {
-          const sum = storeRatings.reduce((a, b) => a + b.score, 0);
-          rating = sum / storeRatings.length;
-        }
-      }
-      return { ...user, rating, ratings: undefined, ownedStores: undefined };
-    });
+        u.id,
+        u.name,
+        u.email,
+        u.address,
+        u.role,
 
-    res.json(formattedUsers);
-  } catch (error) {
-    res.status(500).json({ error: 'Internal server error' });
+        AVG(r.score)
+        AS rating
+
+        FROM user u
+
+        LEFT JOIN store s
+        ON s.ownerId=u.id
+
+        LEFT JOIN rating r
+        ON r.storeId=s.id
+
+        GROUP BY u.id
+        `,
+    );
+
+    res.json(users);
+  } catch (err) {
+    console.log(err);
+
+    res.status(500).json({
+      error: "Internal server error",
+    });
   }
 };
+
+// GET STORES
 
 exports.getStores = async (req, res) => {
   try {
-    const stores = await prisma.store.findMany({
-      include: {
-        ratings: { select: { score: true } }
-      }
-    });
+    const [stores] = await db.execute(
+      `
+        SELECT
 
-    const formattedStores = stores.map(store => {
-      let rating = 0;
-      if (store.ratings.length > 0) {
-        const sum = store.ratings.reduce((a, b) => a + b.score, 0);
-        rating = sum / store.ratings.length;
-      }
-      return { id: store.id, name: store.name, email: store.email, address: store.address, rating };
-    });
+        s.id,
+        s.name,
+        s.email,
+        s.address,
 
-    res.json(formattedStores);
-  } catch (error) {
-    res.status(500).json({ error: 'Internal server error' });
+        AVG(r.score)
+        AS rating
+
+        FROM store s
+
+        LEFT JOIN rating r
+        ON r.storeId=s.id
+
+        GROUP BY s.id
+        `,
+    );
+
+    res.json(stores);
+  } catch (err) {
+    console.log(err);
+
+    res.status(500).json({
+      error: "Internal server error",
+    });
   }
 };
+
+// ADD USER
 
 exports.addUser = async (req, res) => {
-  // Similar to register, but restricted to admin
   try {
     const { name, email, password, address, role } = req.body;
-    const hashedPassword = await bcrypt.hash(password, 10);
-    const user = await prisma.user.create({
-      data: { name, email, password: hashedPassword, address, role },
+
+    const hashed = await bcrypt.hash(password, 10);
+
+    const id = crypto.randomUUID();
+
+    await db.execute(
+      `
+      INSERT INTO user
+      (
+        id,
+        name,
+        email,
+        password,
+        address,
+        role
+      )
+      VALUES
+      (?,?,?,?,?,?)
+      `,
+
+      [id, name, email, hashed, address, role],
+    );
+
+    res.status(201).json({
+      message: "User created",
+
+      userId: id,
     });
-    res.status(201).json({ message: 'User created', userId: user.id });
-  } catch (error) {
-    res.status(500).json({ error: 'Internal server error' });
+  } catch (err) {
+    console.log(err);
+
+    res.status(500).json({
+      error: "Internal server error",
+    });
   }
 };
+
+// ADD STORE
 
 exports.addStore = async (req, res) => {
   try {
     const { name, email, address, ownerId } = req.body;
-    const store = await prisma.store.create({
-      data: { name, email, address, ownerId }
+
+    const id = crypto.randomUUID();
+
+    await db.execute(
+      `
+      INSERT INTO store
+      (
+        id,
+        name,
+        email,
+        address,
+        ownerId
+      )
+      VALUES
+      (?,?,?,?,?)
+      `,
+
+      [id, name, email, address, ownerId],
+    );
+
+    res.status(201).json({
+      message: "Store created",
+
+      storeId: id,
     });
-    res.status(201).json({ message: 'Store created', storeId: store.id });
-  } catch (error) {
-    res.status(500).json({ error: 'Internal server error' });
+  } catch (err) {
+    console.log(err);
+
+    res.status(500).json({
+      error: "Internal server error",
+    });
   }
 };
